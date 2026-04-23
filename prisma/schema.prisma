@@ -1,0 +1,260 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Workspace {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  users      User[]
+  projects   Project[]
+  taskLabels TaskLabel[]
+  docs       Doc[]
+
+  @@map("workspaces")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  workspaceId  String   @map("workspace_id")
+  email        String   @unique
+  name         String
+  passwordHash String?  @map("password_hash")
+  role         UserRole @default(member)
+  avatarUrl    String?  @map("avatar_url")
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id])
+  projects      Project[]      @relation("ProjectCreator")
+  assignedTasks Task[]         @relation("TaskAssignee")
+  createdTasks  Task[]         @relation("TaskCreator")
+  comments      TaskComment[]
+  attachments   Attachment[]
+  notifications Notification[]
+  docs          Doc[]
+  sessions      Session[]
+  accounts      Account[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  owner
+  member
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  name        String
+  slug        String   @unique
+  description String?
+  colour      String   @default("#6366f1")
+  icon        String   @default("📁")
+  archived    Boolean  @default(false)
+  createdById String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  createdBy User      @relation("ProjectCreator", fields: [createdById], references: [id])
+  columns   Column[]
+  tasks     Task[]
+  docs      Doc[]
+
+  @@map("projects")
+}
+
+model Column {
+  id        String  @id @default(uuid())
+  projectId String  @map("project_id")
+  name      String
+  position  Int
+  colour    String?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+
+  @@map("columns")
+}
+
+model Task {
+  id          String       @id @default(uuid())
+  projectId   String       @map("project_id")
+  columnId    String       @map("column_id")
+  title       String
+  description Json?
+  priority    TaskPriority @default(none)
+  assigneeId  String?      @map("assignee_id")
+  dueDate     DateTime?    @map("due_date") @db.Date
+  position    Float        @default(0)
+  createdById String       @map("created_by")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  project     Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  column      Column                @relation(fields: [columnId], references: [id])
+  assignee    User?                 @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  createdBy   User                  @relation("TaskCreator", fields: [createdById], references: [id])
+  comments    TaskComment[]
+  attachments Attachment[]
+  labels      TaskLabelAssignment[]
+
+  @@map("tasks")
+}
+
+enum TaskPriority {
+  none
+  low
+  medium
+  high
+  urgent
+}
+
+model TaskLabel {
+  id          String @id @default(uuid())
+  workspaceId String @map("workspace_id")
+  name        String
+  colour      String
+
+  workspace   Workspace             @relation(fields: [workspaceId], references: [id])
+  assignments TaskLabelAssignment[]
+
+  @@map("task_labels")
+}
+
+model TaskLabelAssignment {
+  taskId  String @map("task_id")
+  labelId String @map("label_id")
+
+  task  Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label TaskLabel @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, labelId])
+  @@map("task_label_assignments")
+}
+
+model TaskComment {
+  id        String   @id @default(uuid())
+  taskId    String   @map("task_id")
+  authorId  String   @map("author_id")
+  body      Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id])
+
+  @@map("task_comments")
+}
+
+model Doc {
+  id          String   @id @default(uuid())
+  workspaceId String   @map("workspace_id")
+  projectId   String?  @map("project_id")
+  parentId    String?  @map("parent_id")
+  title       String
+  slug        String   @unique
+  body        Json?
+  position    Float    @default(0)
+  createdById String   @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  project   Project?  @relation(fields: [projectId], references: [id])
+  parent    Doc?      @relation("DocChildren", fields: [parentId], references: [id])
+  children  Doc[]     @relation("DocChildren")
+  createdBy User      @relation(fields: [createdById], references: [id])
+
+  @@map("docs")
+}
+
+model Notification {
+  id         String           @id @default(uuid())
+  userId     String           @map("user_id")
+  type       NotificationType
+  entityType EntityType       @map("entity_type")
+  entityId   String           @map("entity_id")
+  read       Boolean          @default(false)
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+enum NotificationType {
+  assigned
+  mentioned
+  commented
+}
+
+enum EntityType {
+  task
+  doc
+  comment
+}
+
+model Attachment {
+  id           String   @id @default(uuid())
+  taskId       String   @map("task_id")
+  uploadedById String   @map("uploaded_by")
+  filename     String
+  storagePath  String   @map("storage_path")
+  mimeType     String   @map("mime_type")
+  sizeBytes    Int      @map("size_bytes")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  task       Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploadedBy User @relation(fields: [uploadedById], references: [id])
+
+  @@map("attachments")
+}

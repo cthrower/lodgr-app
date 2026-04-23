@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Next.js build output and cache (for both /app and /web)
+.next/
+out/
+
+# Build / runtime artifacts
+dist/
+build/
+coverage/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Turbo / task caches
+.turbo/
+
+# TypeScript
+*.tsbuildinfo
+
+# Prisma local sqlite files (keep migrations/schema tracked)
+*.db
+*.db-journal
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
