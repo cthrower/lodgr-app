@@ -63,7 +63,7 @@ Built to run on your own VPS. Your data stays yours.
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/your-username/lodgr-app.git
+git clone https://github.com/cthrower/lodgr-app.git
 cd lodgr-app
 npm install
 ```
