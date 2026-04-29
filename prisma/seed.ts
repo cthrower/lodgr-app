@@ -17,12 +17,12 @@ async function main() {
   // Create owner user
   const passwordHash = await bcrypt.hash('password', 12)
   const user = await db.user.upsert({
-    where: { email: 'me@christhrower.com' },
+    where: { email: 'email@yourdomain.com' },
     update: {},
     create: {
       workspaceId: workspace.id,
-      email: 'me@christhrower.com',
-      name: 'Chris',
+      email: 'email@yourdomain.com',
+      name: 'Firstname',
       passwordHash,
       role: 'owner',
     },
