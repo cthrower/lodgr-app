@@ -1,5 +1,7 @@
 # Lodgr
 
+**Where your work lives.**
+
 A lightweight, self-hosted workspace app for small teams. Covers the two things Notion does best — **task tracking** and **docs** — without the complexity, AI upsells, or subscription tiers.
 
 Built to run on your own VPS. Your data stays yours.
