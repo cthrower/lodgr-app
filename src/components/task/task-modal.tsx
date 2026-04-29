@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { X, Flag, Calendar, User, Trash2, Tag, Paperclip, MessageSquare, Download } from 'lucide-react'
+import { X, Flag, Calendar, User, Trash2, Tag, Paperclip, MessageSquare, Download, CornerDownRight } from 'lucide-react'
 import TiptapEditor from '@/components/editor/tiptap'
 import { updateTask, deleteTask } from '@/actions/tasks'
 import { toggleLabelOnTask } from '@/actions/labels'
@@ -32,12 +32,15 @@ export type ModalTask = {
   labels: { label: { id: string; name: string; colour: string } }[]
 }
 
-type Comment = {
+type FlatComment = {
   id: string
   body: unknown
   createdAt: string
+  parentId: string | null
   author: { id: string; name: string; avatarUrl: string | null }
 }
+
+type ThreadedComment = FlatComment & { replies: FlatComment[] }
 
 type Attachment = {
   id: string
@@ -59,6 +62,29 @@ type Props = {
 }
 
 type Tab = 'description' | 'comments' | 'attachments'
+
+const AVATAR_COLORS = [
+  ['#6366f1', '#a855f7'],
+  ['#3b82f6', '#06b6d4'],
+  ['#10b981', '#14b8a6'],
+  ['#f97316', '#ef4444'],
+  ['#ec4899', '#f43f5e'],
+  ['#8b5cf6', '#6366f1'],
+  ['#f59e0b', '#f97316'],
+  ['#06b6d4', '#3b82f6'],
+]
+
+function avatarStyle(str: string): React.CSSProperties {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash)
+  const [a, b] = AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
+  return { background: `linear-gradient(135deg, ${a}, ${b})` }
+}
+
+function nestComments(flat: FlatComment[]): ThreadedComment[] {
+  const top = flat.filter((c) => !c.parentId)
+  return top.map((c) => ({ ...c, replies: flat.filter((r) => r.parentId === c.id) }))
+}
 
 function getCommentText(body: unknown): string {
   if (!body || typeof body !== 'object') return ''
@@ -82,10 +108,65 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function CommentBubble({
+  comment,
+  onDelete,
+  onReply,
+}: {
+  comment: FlatComment
+  onDelete: (id: string) => void
+  onReply?: (id: string, name: string) => void
+}) {
+  return (
+    <div className="flex gap-3">
+      <div
+        style={avatarStyle(comment.author.id)}
+        className="h-7 w-7 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5"
+      >
+        {comment.author.name[0].toUpperCase()}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-sm font-medium text-[var(--text-primary)]">
+            {comment.author.name}
+          </span>
+          <span className="text-xs text-[var(--text-muted)]">
+            {new Date(comment.createdAt).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </span>
+        </div>
+        <div className="rounded-xl px-3 py-2 text-sm bg-[var(--surface-hover)] text-[var(--text-primary)]">
+          {getCommentText(comment.body) || '(empty)'}
+        </div>
+        <div className="flex items-center gap-3 mt-1">
+          {onReply && (
+            <button
+              onClick={() => onReply(comment.id, comment.author.name)}
+              className="flex items-center gap-1 text-xs transition-colors text-[var(--text-muted)] hover:text-[var(--primary)]"
+            >
+              <CornerDownRight className="h-3 w-3" />
+              Reply
+            </button>
+          )}
+          <button
+            onClick={() => onDelete(comment.id)}
+            className="text-xs transition-colors text-[var(--text-muted)] hover:text-red-500"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function TaskModal({ task, members, columns, labels, onClose }: Props) {
   const router = useRouter()
 
-  // Core fields
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState<unknown>(null)
   const [priority, setPriority] = useState<TaskPriority>('none')
@@ -94,14 +175,17 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
   const [dueDate, setDueDate] = useState('')
   const [assignedLabelIds, setAssignedLabelIds] = useState<string[]>([])
 
-  // Tabs
   const [activeTab, setActiveTab] = useState<Tab>('description')
 
   // Comments
-  const [comments, setComments] = useState<Comment[]>([])
+  const [flatComments, setFlatComments] = useState<FlatComment[]>([])
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [postingComment, setPostingComment] = useState(false)
+  // Threaded replies
+  const [replyingTo, setReplyingTo] = useState<{ id: string; name: string } | null>(null)
+  const [replyText, setReplyText] = useState('')
+  const [postingReply, setPostingReply] = useState(false)
 
   // Attachments
   const [attachments, setAttachments] = useState<Attachment[]>([])
@@ -121,18 +205,18 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
     setDueDate(task.dueDate ? task.dueDate.slice(0, 10) : '')
     setAssignedLabelIds(task.labels.map((l) => l.label.id))
     setActiveTab('description')
-    setComments([])
+    setFlatComments([])
     setAttachments([])
+    setReplyingTo(null)
     setTimeout(() => titleRef.current?.select(), 50)
   }, [task?.id])
 
-  // Load comments and attachments when their tab is opened
   useEffect(() => {
-    if (!task?.id || activeTab !== 'comments' || comments.length > 0) return
+    if (!task?.id || activeTab !== 'comments' || flatComments.length > 0) return
     setCommentsLoading(true)
     fetch(`/api/tasks/${task.id}/comments`)
       .then((r) => r.json())
-      .then(setComments)
+      .then(setFlatComments)
       .finally(() => setCommentsLoading(false))
   }, [activeTab, task?.id])
 
@@ -188,9 +272,9 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
     try {
       const body = { text: commentText.trim() }
       const comment = await createComment({ taskId: task.id, body })
-      setComments((prev) => [
+      setFlatComments((prev) => [
         ...prev,
-        { ...comment, createdAt: comment.createdAt.toISOString() } as Comment,
+        { ...comment, parentId: null, createdAt: comment.createdAt.toISOString() } as FlatComment,
       ])
       setCommentText('')
     } finally {
@@ -198,10 +282,28 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
     }
   }
 
+  async function handlePostReply() {
+    if (!task || !replyingTo || !replyText.trim()) return
+    setPostingReply(true)
+    try {
+      const body = { text: replyText.trim() }
+      const comment = await createComment({ taskId: task.id, body, parentId: replyingTo.id })
+      setFlatComments((prev) => [
+        ...prev,
+        { ...comment, parentId: replyingTo.id, createdAt: comment.createdAt.toISOString() } as FlatComment,
+      ])
+      setReplyText('')
+      setReplyingTo(null)
+    } finally {
+      setPostingReply(false)
+    }
+  }
+
   async function handleDeleteComment(id: string) {
     if (!confirm('Delete this comment?')) return
     await deleteComment(id)
-    setComments((prev) => prev.filter((c) => c.id !== id))
+    // Remove comment and any replies to it
+    setFlatComments((prev) => prev.filter((c) => c.id !== id && c.parentId !== id))
   }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -232,22 +334,22 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
   }
 
   const isOverdue = dueDate && new Date(dueDate) < new Date(new Date().toDateString())
+  const threaded = nestComments(flatComments)
+  const totalComments = flatComments.length
 
   if (!task) return null
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
       onClick={(e) => e.target === e.currentTarget && handleClose()}
     >
       <div
-        className="w-full max-w-2xl rounded-xl border shadow-2xl flex flex-col max-h-[88vh] border-[var(--border)] bg-[var(--surface)]"
+        className="w-full max-w-2xl rounded-2xl border shadow-[var(--shadow-lg)] flex flex-col max-h-[88vh] border-[var(--border)] bg-[var(--surface)]"
         onKeyDown={(e) => e.key === 'Escape' && handleClose()}
       >
         {/* Title row */}
-        <div
-          className="flex items-start gap-3 px-5 pt-5 pb-4 border-b shrink-0 border-[var(--border)]"
-        >
+        <div className="flex items-start gap-3 px-5 pt-5 pb-4 border-b shrink-0 border-[var(--border)]">
           <input
             ref={titleRef}
             value={title}
@@ -259,14 +361,14 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
           <div className="flex items-center gap-1 shrink-0 mt-0.5">
             <button
               onClick={handleDelete}
-              className="h-7 w-7 rounded flex items-center justify-center transition-colors hover:text-red-500 text-[var(--text-muted)]"
+              className="h-7 w-7 rounded-lg flex items-center justify-center transition-all text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
               title="Delete task"
             >
               <Trash2 className="h-4 w-4" />
             </button>
             <button
               onClick={handleClose}
-              className="h-7 w-7 rounded flex items-center justify-center transition-colors text-[var(--text-muted)]"
+              className="h-7 w-7 rounded-lg flex items-center justify-center transition-all text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
             >
               <X className="h-4 w-4" />
             </button>
@@ -277,28 +379,24 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
           {/* Main panel */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Tab bar */}
-            <div
-              className="flex border-b shrink-0 px-5 gap-5 border-[var(--border)]"
-            >
+            <div className="flex border-b shrink-0 px-5 gap-5 border-[var(--border)]">
               {(['description', 'comments', 'attachments'] as Tab[]).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
                   className={cn(
-                    'py-2.5 text-sm font-medium border-b-2 -mb-px capitalize transition-colors',
-                    activeTab === tab ? 'border-[var(--primary)] text-[var(--primary)]' : 'border-transparent text-[var(--text-secondary)]'
+                    'py-2.5 text-sm font-medium border-b-2 -mb-px capitalize transition-all duration-150',
+                    activeTab === tab
+                      ? 'border-[var(--primary)] text-[var(--primary)]'
+                      : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                   )}
                 >
                   {tab}
-                  {tab === 'comments' && comments.length > 0 && (
-                    <span className="ml-1.5 text-xs text-[var(--text-muted)]">
-                      {comments.length}
-                    </span>
+                  {tab === 'comments' && totalComments > 0 && (
+                    <span className="ml-1.5 text-xs text-[var(--text-muted)]">{totalComments}</span>
                   )}
                   {tab === 'attachments' && attachments.length > 0 && (
-                    <span className="ml-1.5 text-xs text-[var(--text-muted)]">
-                      {attachments.length}
-                    </span>
+                    <span className="ml-1.5 text-xs text-[var(--text-muted)]">{attachments.length}</span>
                   )}
                 </button>
               ))}
@@ -306,7 +404,6 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
 
             {/* Tab content */}
             <div className="flex-1 overflow-y-auto p-5">
-              {/* Description */}
               {activeTab === 'description' && (
                 <TiptapEditor
                   content={description}
@@ -315,89 +412,105 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
                 />
               )}
 
-              {/* Comments */}
               {activeTab === 'comments' && (
-                <div className="space-y-4">
+                <div className="space-y-5">
                   {commentsLoading && (
-                    <p className="text-sm text-center py-4 text-[var(--text-muted)]">
-                      Loading…
-                    </p>
+                    <p className="text-sm text-center py-4 text-[var(--text-muted)]">Loading…</p>
                   )}
-                  {!commentsLoading && comments.length === 0 && (
+                  {!commentsLoading && threaded.length === 0 && (
                     <div className="text-center py-8">
-                      <MessageSquare
-                        className="h-8 w-8 mx-auto mb-2 text-[var(--text-muted)]"
-                      />
-                      <p className="text-sm text-[var(--text-muted)]">
-                        No comments yet
-                      </p>
+                      <MessageSquare className="h-8 w-8 mx-auto mb-2 text-[var(--text-muted)]" />
+                      <p className="text-sm text-[var(--text-muted)]">No comments yet</p>
                     </div>
                   )}
-                  {comments.map((comment) => (
-                    <div key={comment.id} className="flex gap-3">
-                      <div
-                        className="h-7 w-7 rounded-full flex items-center justify-center text-white text-xs font-semibold shrink-0 mt-0.5 bg-[var(--primary)]"
-                      >
-                        {comment.author.name[0].toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-medium text-[var(--text-primary)]">
-                            {comment.author.name}
-                          </span>
-                          <span className="text-xs text-[var(--text-muted)]">
-                            {new Date(comment.createdAt).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
+
+                  {threaded.map((comment) => (
+                    <div key={comment.id} className="space-y-3">
+                      <CommentBubble
+                        comment={comment}
+                        onDelete={handleDeleteComment}
+                        onReply={(id, name) => {
+                          setReplyingTo({ id, name })
+                          setReplyText('')
+                        }}
+                      />
+
+                      {/* Replies */}
+                      {comment.replies.length > 0 && (
+                        <div className="ml-10 space-y-3 pl-3 border-l-2 border-[var(--border)]">
+                          {comment.replies.map((reply) => (
+                            <CommentBubble
+                              key={reply.id}
+                              comment={reply}
+                              onDelete={handleDeleteComment}
+                            />
+                          ))}
                         </div>
-                        <div className="rounded-lg px-3 py-2 text-sm bg-[var(--sidebar-bg)] text-[var(--text-primary)]">
-                          {getCommentText(comment.body) || '(empty)'}
+                      )}
+
+                      {/* Inline reply form for this comment */}
+                      {replyingTo?.id === comment.id && (
+                        <div className="ml-10 pl-3 border-l-2 border-[var(--primary)]">
+                          <p className="text-xs text-[var(--text-muted)] mb-1.5">
+                            Replying to <span className="font-medium text-[var(--text-secondary)]">@{replyingTo.name}</span>
+                          </p>
+                          <textarea
+                            autoFocus
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handlePostReply()
+                              if (e.key === 'Escape') { setReplyingTo(null); setReplyText('') }
+                            }}
+                            placeholder="Write a reply… (⌘+Enter to post)"
+                            rows={2}
+                            className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-glow)] resize-none border-[var(--border)] bg-[var(--surface-hover)] text-[var(--text-primary)] transition-all"
+                          />
+                          <div className="flex items-center gap-2 mt-2">
+                            <button
+                              onClick={handlePostReply}
+                              disabled={postingReply || !replyText.trim()}
+                              style={{ background: 'var(--gradient-primary)' }}
+                              className="rounded-xl px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40 transition-all hover:opacity-90"
+                            >
+                              {postingReply ? 'Posting…' : 'Post reply'}
+                            </button>
+                            <button
+                              onClick={() => { setReplyingTo(null); setReplyText('') }}
+                              className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         </div>
-                        <button
-                          onClick={() => handleDeleteComment(comment.id)}
-                          className="text-xs mt-1 transition-colors text-[var(--text-muted)]"
-                        >
-                          Delete
-                        </button>
-                      </div>
+                      )}
                     </div>
                   ))}
 
-                  {/* New comment */}
-                  <div className="flex gap-3 pt-2 border-t border-[var(--border)]">
-                    <div
-                      className="h-7 w-7 rounded-full flex items-center justify-center text-white text-xs font-semibold shrink-0 mt-1 bg-[var(--primary)]"
+                  {/* New top-level comment */}
+                  <div className="pt-2 border-t border-[var(--border)]">
+                    <textarea
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handlePostComment()
+                      }}
+                      placeholder="Write a comment… (⌘+Enter to post, @name to mention)"
+                      rows={3}
+                      className="w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-glow)] resize-none border-[var(--border)] bg-[var(--surface-hover)] text-[var(--text-primary)] transition-all"
+                    />
+                    <button
+                      onClick={handlePostComment}
+                      disabled={postingComment || !commentText.trim()}
+                      style={{ background: 'var(--gradient-primary)' }}
+                      className="mt-2 rounded-xl px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40 transition-all hover:opacity-90"
                     >
-                      ?
-                    </div>
-                    <div className="flex-1">
-                      <textarea
-                        value={commentText}
-                        onChange={(e) => setCommentText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handlePostComment()
-                        }}
-                        placeholder="Write a comment… (⌘+Enter to post)"
-                        rows={3}
-                        className="w-full rounded-lg border px-3 py-2 text-sm focus:outline-none resize-none border-[var(--border)] bg-[var(--sidebar-bg)] text-[var(--text-primary)]"
-                      />
-                      <button
-                        onClick={handlePostComment}
-                        disabled={postingComment || !commentText.trim()}
-                        className="mt-2 rounded-md px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50 bg-[var(--primary)]"
-                      >
-                        {postingComment ? 'Posting…' : 'Post comment'}
-                      </button>
-                    </div>
+                      {postingComment ? 'Posting…' : 'Post comment'}
+                    </button>
                   </div>
                 </div>
               )}
 
-              {/* Attachments */}
               {activeTab === 'attachments' && (
                 <div className="space-y-3">
                   <div>
@@ -410,7 +523,7 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       disabled={uploading}
-                      className="flex items-center gap-2 rounded-lg border border-dashed px-4 py-2.5 text-sm transition-colors disabled:opacity-50 border-[var(--border)] text-[var(--text-secondary)]"
+                      className="flex items-center gap-2 rounded-xl border border-dashed px-4 py-2.5 text-sm transition-all disabled:opacity-50 border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--primary)] hover:text-[var(--primary)]"
                     >
                       <Paperclip className="h-4 w-4" />
                       {uploading ? 'Uploading…' : 'Upload file (max 50 MB)'}
@@ -419,12 +532,8 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
 
                   {attachments.length === 0 && !uploading && (
                     <div className="text-center py-8">
-                      <Paperclip
-                        className="h-8 w-8 mx-auto mb-2 text-[var(--text-muted)]"
-                      />
-                      <p className="text-sm text-[var(--text-muted)]">
-                        No attachments yet
-                      </p>
+                      <Paperclip className="h-8 w-8 mx-auto mb-2 text-[var(--text-muted)]" />
+                      <p className="text-sm text-[var(--text-muted)]">No attachments yet</p>
                     </div>
                   )}
 
@@ -432,11 +541,9 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
                     {attachments.map((att) => (
                       <div
                         key={att.id}
-                        className="flex items-center gap-3 rounded-lg border px-3 py-2.5 border-[var(--border)] bg-[var(--sidebar-bg)]"
+                        className="flex items-center gap-3 rounded-xl border px-3 py-2.5 border-[var(--border)] bg-[var(--surface-hover)]"
                       >
-                        <Paperclip
-                          className="h-4 w-4 shrink-0 text-[var(--text-muted)]"
-                        />
+                        <Paperclip className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate text-[var(--text-primary)]">
                             {att.filename}
@@ -448,14 +555,14 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
                         <a
                           href={`/api/attachments/${att.id}`}
                           download={att.filename}
-                          className="h-7 w-7 rounded flex items-center justify-center transition-colors shrink-0 text-[var(--text-muted)]"
+                          className="h-7 w-7 rounded-lg flex items-center justify-center transition-all shrink-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"
                           title="Download"
                         >
                           <Download className="h-4 w-4" />
                         </a>
                         <button
                           onClick={() => handleDeleteAttachment(att.id)}
-                          className="h-7 w-7 rounded flex items-center justify-center transition-colors shrink-0 hover:text-red-500 text-[var(--text-muted)]"
+                          className="h-7 w-7 rounded-lg flex items-center justify-center transition-all shrink-0 text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
                           title="Delete"
                         >
                           <X className="h-4 w-4" />
@@ -469,14 +576,10 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
           </div>
 
           {/* Side panel */}
-          <div
-            className="w-52 shrink-0 border-l overflow-y-auto p-4 space-y-5 border-[var(--border)] bg-[var(--sidebar-bg)]"
-          >
+          <div className="w-52 shrink-0 border-l overflow-y-auto p-4 space-y-5 border-[var(--border)] bg-[var(--surface-raised)]">
             {/* Status */}
             <div>
-              <p
-                className="text-xs font-medium mb-1.5 uppercase tracking-wide text-[var(--text-muted)]"
-              >
+              <p className="text-[10px] font-semibold mb-2 uppercase tracking-widest text-[var(--text-muted)]">
                 Status
               </p>
               <select
@@ -485,7 +588,7 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
                   setColumnId(e.target.value)
                   saveField({ columnId: e.target.value })
                 }}
-                className="w-full rounded-md border px-2 py-1.5 text-xs focus:outline-none border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]"
+                className="w-full rounded-lg border px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary-glow)] border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)] transition-all"
               >
                 {columns.map((col) => (
                   <option key={col.id} value={col.id}>
@@ -497,9 +600,7 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
 
             {/* Priority */}
             <div>
-              <p
-                className="text-xs font-medium mb-1.5 uppercase tracking-wide flex items-center gap-1 text-[var(--text-muted)]"
-              >
+              <p className="text-[10px] font-semibold mb-2 uppercase tracking-widest flex items-center gap-1 text-[var(--text-muted)]">
                 <Flag className="h-3 w-3" />
                 Priority
               </p>
@@ -512,14 +613,14 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
                       saveField({ priority: p.value as ModalTask['priority'] })
                     }}
                     className={cn(
-                      'w-full flex items-center gap-2 rounded px-2 py-1.5 text-xs text-left transition-colors',
-                      priority === p.value ? 'bg-[var(--surface-hover)] font-semibold' : 'bg-transparent font-normal',
+                      'w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-left transition-all duration-150',
+                      priority === p.value
+                        ? 'bg-[var(--surface-hover)] font-semibold'
+                        : 'bg-transparent font-normal hover:bg-[var(--surface-hover)]',
                       priority === p.value ? textClassForColor(p.colour) : 'text-[var(--text-secondary)]'
                     )}
                   >
-                    <span
-                      className={cn('h-2 w-2 rounded-full shrink-0', bgClassForColor(p.colour))}
-                    />
+                    <span className={cn('h-2 w-2 rounded-full shrink-0', bgClassForColor(p.colour))} />
                     {p.label}
                   </button>
                 ))}
@@ -528,9 +629,7 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
 
             {/* Assignee */}
             <div>
-              <p
-                className="text-xs font-medium mb-1.5 uppercase tracking-wide flex items-center gap-1 text-[var(--text-muted)]"
-              >
+              <p className="text-[10px] font-semibold mb-2 uppercase tracking-widest flex items-center gap-1 text-[var(--text-muted)]">
                 <User className="h-3 w-3" />
                 Assignee
               </p>
@@ -541,7 +640,7 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
                     saveField({ assigneeId: null })
                   }}
                   className={cn(
-                    'w-full flex items-center gap-2 rounded px-2 py-1.5 text-xs text-left transition-colors text-[var(--text-secondary)]',
+                    'w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-left transition-all text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]',
                     !assigneeId ? 'bg-[var(--surface-hover)]' : 'bg-transparent'
                   )}
                 >
@@ -555,12 +654,13 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
                       saveField({ assigneeId: m.id })
                     }}
                     className={cn(
-                      'w-full flex items-center gap-2 rounded px-2 py-1.5 text-xs text-left transition-colors text-[var(--text-secondary)]',
+                      'w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-left transition-all text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]',
                       assigneeId === m.id ? 'bg-[var(--surface-hover)] font-semibold' : 'bg-transparent font-normal'
                     )}
                   >
                     <div
-                      className="h-5 w-5 rounded-full flex items-center justify-center text-white text-xs font-semibold shrink-0 bg-[var(--primary)]"
+                      style={avatarStyle(m.id)}
+                      className="h-5 w-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0"
                     >
                       {m.name[0].toUpperCase()}
                     </div>
@@ -572,9 +672,7 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
 
             {/* Due date */}
             <div>
-              <p
-                className="text-xs font-medium mb-1.5 uppercase tracking-wide flex items-center gap-1 text-[var(--text-muted)]"
-              >
+              <p className="text-[10px] font-semibold mb-2 uppercase tracking-widest flex items-center gap-1 text-[var(--text-muted)]">
                 <Calendar className="h-3 w-3" />
                 Due date
               </p>
@@ -586,8 +684,10 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
                   saveField({ dueDate: e.target.value ? new Date(e.target.value) : null })
                 }}
                 className={cn(
-                  'w-full rounded-md border px-2 py-1.5 text-xs focus:outline-none bg-[var(--surface)]',
-                  isOverdue ? 'border-[#ef4444] text-[#ef4444]' : 'border-[var(--border)] text-[var(--text-primary)]'
+                  'w-full rounded-lg border px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--primary-glow)] transition-all bg-[var(--surface)]',
+                  isOverdue
+                    ? 'border-[#ef4444] text-[#ef4444]'
+                    : 'border-[var(--border)] text-[var(--text-primary)]'
                 )}
               />
               {dueDate && (
@@ -596,7 +696,7 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
                     setDueDate('')
                     saveField({ dueDate: null })
                   }}
-                  className="text-xs mt-1.5 transition-colors text-[var(--text-muted)]"
+                  className="text-xs mt-1.5 transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                 >
                   Clear
                 </button>
@@ -605,16 +705,12 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
 
             {/* Labels */}
             <div>
-              <p
-                className="text-xs font-medium mb-2 uppercase tracking-wide flex items-center gap-1 text-[var(--text-muted)]"
-              >
+              <p className="text-[10px] font-semibold mb-2 uppercase tracking-widest flex items-center gap-1 text-[var(--text-muted)]">
                 <Tag className="h-3 w-3" />
                 Labels
               </p>
               {labels.length === 0 ? (
-                <p className="text-xs text-[var(--text-muted)]">
-                  Create labels in Settings.
-                </p>
+                <p className="text-xs text-[var(--text-muted)]">Create labels in Settings.</p>
               ) : (
                 <div className="flex flex-wrap gap-1">
                   {labels.map((label) => {
@@ -624,9 +720,9 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
                         key={label.id}
                         onClick={() => handleLabelToggle(label.id)}
                         className={cn(
-                          'text-xs px-2 py-0.5 rounded-full font-medium transition-opacity text-white',
+                          'text-xs px-2 py-0.5 rounded-full font-semibold transition-all text-white',
                           bgClassForColor(label.colour),
-                          assigned ? 'opacity-100' : 'opacity-30'
+                          assigned ? 'opacity-100' : 'opacity-25 hover:opacity-50'
                         )}
                         title={assigned ? 'Remove label' : 'Add label'}
                       >

@@ -1,0 +1,95 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+    branches:
+      - dev
+      - main
+
+jobs:
+  review:
+    name: AI code review
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get PR diff
+        id: diff
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          DIFF=$(git diff origin/${{ github.base_ref }}...HEAD -- \
+            '*.ts' '*.tsx' '*.js' '*.jsx' '*.json' '*.prisma' \
+            | head -c 30000)
+          echo "diff<<EOF" >> $GITHUB_OUTPUT
+          echo "$DIFF" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Get changed files
+        id: files
+        run: |
+          FILES=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | tr '\n' ', ')
+          echo "files=$FILES" >> $GITHUB_OUTPUT
+
+      - name: Run Claude review
+        id: claude
+        run: |
+          RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.ANTHROPIC_API_KEY }}" \
+            -H "anthropic-version: 2023-06-01" \
+            -d '{
+              "model": "claude-opus-4-5",
+              "max_tokens": 2048,
+              "system": "You are an experienced senior engineer reviewing a pull request for Lodgr, a self-hosted workspace app built with Next.js 15, Prisma, PostgreSQL, NextAuth v5, and Tailwind CSS.\n\nYour job is to review the code diff and give honest, specific, constructive feedback. Focus on:\n\n- Correctness: Will this code do what it is supposed to do? Are there edge cases that are not handled?\n- Security: Are there any obvious security issues, especially around auth, user input, or database queries?\n- Performance: Are there any unnecessary re-renders, N+1 queries, or expensive operations that could be avoided?\n- Prisma and database patterns: Are queries efficient? Are transactions used where they should be? Is error handling correct?\n- Next.js patterns: Are Server Actions and API routes used appropriately? Are Server and Client Components used correctly?\n- TypeScript: Is the typing correct and specific? Are there any unnecessary uses of `any`?\n- Code clarity: Is the code easy to understand? Are there things that should be named better or split into smaller functions?\n\nFormat your review using these sections. Only include a section if you have something relevant to say about it:\n\n**Summary**\nA short 2-3 sentence overview of what this PR does and your overall impression.\n\n**Issues**\nA numbered list of specific problems that should be fixed before this is merged. Quote the relevant code or filename and line where possible.\n\n**Suggestions**\nA numbered list of non-blocking improvements worth considering. These are not required but would make the code better.\n\n**Looks good**\nThings that are done well and worth acknowledging.\n\nBe direct and specific. Do not pad the review with generic praise. If the code is straightforward and has no issues, say so briefly. Do not use em dashes.",
+              "messages": [
+                {
+                  "role": "user",
+                  "content": "Please review this pull request.\n\n**PR title:** ${{ github.event.pull_request.title }}\n\n**PR description:**\n${{ github.event.pull_request.body }}\n\n**Changed files:** ${{ steps.files.outputs.files }}\n\n**Diff:**\n```\n${{ steps.diff.outputs.diff }}\n```"
+                }
+              ]
+            }')
+
+          REVIEW=$(echo "$RESPONSE" | node -e "
+            let data = '';
+            process.stdin.on('data', chunk => data += chunk);
+            process.stdin.on('end', () => {
+              try {
+                const parsed = JSON.parse(data);
+                const text = parsed.content && parsed.content[0] && parsed.content[0].text;
+                if (text) {
+                  process.stdout.write(text);
+                } else {
+                  process.stdout.write('Claude review failed: ' + JSON.stringify(parsed));
+                }
+              } catch (e) {
+                process.stdout.write('Failed to parse Claude response: ' + e.message);
+              }
+            });
+          ")
+
+          echo "review<<EOF" >> $GITHUB_OUTPUT
+          echo "$REVIEW" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Post review comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const review = `## Claude Code Review\n\n${{ steps.claude.outputs.review }}\n\n---\n*This review was generated automatically. Please address or respond to all points before requesting a human review.*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: review
+            });

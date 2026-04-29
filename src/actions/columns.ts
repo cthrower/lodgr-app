@@ -55,3 +55,14 @@ export async function deleteColumn(id: string) {
   await db.column.delete({ where: { id } })
   revalidatePath('/projects')
 }
+
+export async function reorderColumns(updates: { id: string; position: number }[]) {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error('Unauthorized')
+
+  await Promise.all(
+    updates.map(({ id, position }) =>
+      db.column.update({ where: { id }, data: { position } })
+    )
+  )
+}

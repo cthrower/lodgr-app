@@ -1,46 +1,73 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #0a0a0a;
-  --sidebar-bg: #f9fafb;
-  --sidebar-border: #e5e7eb;
+  --background: #f5f6fa;
+  --foreground: #1a1d2e;
+  --sidebar-bg: #eef0f8;
+  --sidebar-border: #dde0f0;
   --surface: #ffffff;
-  --surface-hover: #f3f4f6;
-  --border: #e5e7eb;
-  --text-primary: #111827;
-  --text-secondary: #6b7280;
-  --text-muted: #9ca3af;
+  --surface-raised: #ffffff;
+  --surface-hover: #f0f2f9;
+  --border: #dde0f0;
+  --border-subtle: #eaecf5;
+  --text-primary: #1a1d2e;
+  --text-secondary: #5a5f7a;
+  --text-muted: #9095b0;
   --primary: #6366f1;
   --primary-hover: #4f46e5;
+  --primary-glow: rgba(99, 102, 241, 0.25);
+  --accent: #a855f7;
+  --nav-active-bg: rgba(99, 102, 241, 0.08);
+  --nav-active-text: #6366f1;
+  --gradient-primary: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  --gradient-subtle: linear-gradient(135deg, rgba(99, 102, 241, 0.07) 0%, rgba(168, 85, 247, 0.07) 100%);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05), 0 1px 4px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 20px 48px rgba(0, 0, 0, 0.14), 0 8px 16px rgba(0, 0, 0, 0.08);
+  --shadow-primary: 0 4px 18px rgba(99, 102, 241, 0.35);
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 .dark {
-  --background: #0f1117;
-  --foreground: #f3f4f6;
-  --sidebar-bg: #1a1d27;
-  --sidebar-border: #2d2f3e;
-  --surface: #1e2130;
-  --surface-hover: #252839;
-  --border: #2d2f3e;
-  --text-primary: #f3f4f6;
-  --text-secondary: #9ca3af;
-  --text-muted: #6b7280;
+  --background: #0b0d14;
+  --foreground: #e8eaf6;
+  --sidebar-bg: #0f111a;
+  --sidebar-border: #1e2235;
+  --surface: #13161f;
+  --surface-raised: #191d2c;
+  --surface-hover: #1c2030;
+  --border: #1e2235;
+  --border-subtle: #171a27;
+  --text-primary: #e8eaf6;
+  --text-secondary: #7b82a8;
+  --text-muted: #4a506e;
   --primary: #818cf8;
   --primary-hover: #6366f1;
+  --primary-glow: rgba(129, 140, 248, 0.3);
+  --accent: #c084fc;
+  --nav-active-bg: rgba(129, 140, 248, 0.12);
+  --nav-active-text: #818cf8;
+  --gradient-primary: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+  --gradient-subtle: linear-gradient(135deg, rgba(129, 140, 248, 0.1) 0%, rgba(192, 132, 252, 0.1) 100%);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35), 0 1px 4px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 24px 56px rgba(0, 0, 0, 0.65), 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-primary: 0 4px 20px rgba(99, 102, 241, 0.45);
 }
 
 * {
   box-sizing: border-box;
 }
 
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 body {
   background-color: var(--background);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 :focus-visible {
@@ -54,6 +81,22 @@ input[type="submit"],
 input[type="reset"],
 [role="button"] {
   cursor: pointer;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
 
 /* Tiptap editor prose styles */
@@ -78,7 +121,7 @@ input[type="reset"],
 }
 .prose code {
   background: var(--surface-hover);
-  border-radius: 4px;
+  border-radius: 5px;
   padding: 0.15em 0.4em;
   font-size: 0.88em;
   font-family: 'Fira Code', 'Cascadia Code', monospace;
@@ -87,7 +130,7 @@ input[type="reset"],
 .prose pre {
   background: var(--sidebar-bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 1em;
   overflow-x: auto;
   margin: 0.75em 0;
@@ -99,11 +142,13 @@ input[type="reset"],
 }
 .prose a { color: var(--primary); text-decoration: underline; }
 .prose hr { border: none; border-top: 1px solid var(--border); margin: 1.5em 0; }
+
 /* Tiptap task list */
 ul[data-type="taskList"] { list-style: none; padding-left: 0; }
 ul[data-type="taskList"] li { display: flex; gap: 0.5em; align-items: flex-start; margin: 0.25em 0; }
 ul[data-type="taskList"] li > label { margin-top: 0.15em; flex-shrink: 0; }
 ul[data-type="taskList"] li > div { flex: 1; }
+
 /* Tiptap placeholder */
 .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
@@ -112,6 +157,7 @@ ul[data-type="taskList"] li > div { flex: 1; }
   pointer-events: none;
   color: var(--text-muted);
 }
+
 /* Border-0 editor variant (docs) */
 .border-0 { border: none !important; }
 .border-0 > div:first-child { display: none; }
