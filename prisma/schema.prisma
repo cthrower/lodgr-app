@@ -26,8 +26,10 @@ model User {
   workspaceId  String   @map("workspace_id")
   email        String   @unique
   name         String
-  passwordHash String?  @map("password_hash")
-  role         UserRole @default(member)
+  passwordHash      String?   @map("password_hash")
+  resetToken        String?   @map("reset_token")
+  resetTokenExpiry  DateTime? @map("reset_token_expiry")
+  role              UserRole  @default(member)
   avatarUrl    String?  @map("avatar_url")
   active       Boolean  @default(true)
   createdAt    DateTime @default(now()) @map("created_at")

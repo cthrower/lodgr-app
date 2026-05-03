@@ -83,7 +83,7 @@ DATABASE_URL="postgresql://user:password@localhost:5432/lodgr"
 NEXTAUTH_SECRET="generate-a-random-secret"
 NEXTAUTH_URL="http://localhost:3000"
 RESEND_API_KEY="re_..."
-RESEND_FROM="Lodgr <noreply@yourdomain.com>"
+RESEND_FROM_EMAIL="Lodgr <noreply@yourdomain.com>"
 ```
 
 Generate a secret:
@@ -95,7 +95,7 @@ openssl rand -base64 32
 ### 3. Set up the database
 
 ```bash
-npx prisma db push
+npx prisma migrate deploy
 ```
 
 ### 4. Seed the workspace
@@ -150,7 +150,7 @@ volumes:
 
 ```bash
 docker compose up -d
-docker compose exec app npx prisma db push
+docker compose exec app npx prisma migrate deploy
 ```
 
 ### Nginx reverse proxy

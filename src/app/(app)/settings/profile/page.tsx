@@ -2,6 +2,7 @@ import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { redirect } from 'next/navigation'
 import { updateProfile } from '@/actions/users'
+import { ChangePasswordForm } from '@/components/settings/change-password-form'
 
 export default async function ProfilePage() {
   const session = await auth()
@@ -54,6 +55,8 @@ export default async function ProfilePage() {
           </button>
         </form>
       </div>
+
+      <ChangePasswordForm />
     </div>
   )
 }

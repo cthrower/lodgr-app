@@ -114,6 +114,48 @@ export async function sendInviteEmail({
   })
 }
 
+export async function sendPasswordChangedEmail({
+  to,
+  toName,
+  resetToken,
+}: {
+  to: string
+  toName: string
+  resetToken: string
+}) {
+  if (!resend) return
+
+  const resetUrl = `${APP_URL}/reset-password?token=${resetToken}`
+
+  await resend.emails.send({
+    from: FROM,
+    to,
+    subject: 'Your Lodgr password was changed',
+    html: baseTemplate(`
+      <p style="margin:0 0 8px;font-size:14px;color:#6b7280">Hi ${toName},</p>
+      <p style="margin:0 0 24px;font-size:16px;color:#111827;font-weight:500">
+        Your Lodgr account password was recently changed.
+      </p>
+      <p style="margin:0 0 24px;font-size:14px;color:#374151;line-height:1.6">
+        If you made this change, you can safely ignore this email.
+      </p>
+      <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px 20px;margin-bottom:24px">
+        <p style="margin:0 0 8px;font-size:14px;color:#991b1b;font-weight:500">Didn't make this change?</p>
+        <p style="margin:0;font-size:14px;color:#7f1d1d;line-height:1.6">
+          Your account may be compromised. Reset your password immediately using the button below.
+        </p>
+      </div>
+      <a href="${resetUrl}"
+         style="display:inline-block;background:#dc2626;color:#ffffff;text-decoration:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:500">
+        Reset my password →
+      </a>
+      <p style="margin:20px 0 0;font-size:12px;color:#9ca3af">
+        This reset link expires in 1 hour.
+      </p>
+    `),
+  })
+}
+
 export async function sendCommentEmail({
   to,
   toName,

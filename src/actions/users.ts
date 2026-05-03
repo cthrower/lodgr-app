@@ -3,9 +3,9 @@
 import { auth } from '@/auth'
 import { db } from '@/lib/db'
 import { revalidatePath } from 'next/cache'
-import { hash } from 'bcryptjs'
+import { hash, compare } from 'bcryptjs'
 import { randomBytes } from 'crypto'
-import { sendInviteEmail } from '@/lib/email'
+import { sendInviteEmail, sendPasswordChangedEmail } from '@/lib/email'
 
 export async function inviteUser(formData: FormData) {
   const session = await auth()
@@ -51,6 +51,46 @@ export async function inviteUser(formData: FormData) {
 
   revalidatePath('/settings')
   return newUser
+}
+
+export async function changePassword(formData: FormData) {
+  const session = await auth()
+  if (!session?.user?.id) throw new Error('Unauthorized')
+
+  const currentPassword = formData.get('currentPassword') as string
+  const newPassword = formData.get('newPassword') as string
+  const confirmPassword = formData.get('confirmPassword') as string
+
+  if (!currentPassword || !newPassword || !confirmPassword) throw new Error('All fields are required')
+  if (newPassword.length < 8) throw new Error('New password must be at least 8 characters')
+  if (newPassword !== confirmPassword) throw new Error('Passwords do not match')
+
+  const user = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { email: true, name: true, passwordHash: true },
+  })
+  if (!user || !user.passwordHash) throw new Error('User not found')
+
+  const valid = await compare(currentPassword, user.passwordHash)
+  if (!valid) throw new Error('Current password is incorrect')
+
+  const newHash = await hash(newPassword, 12)
+  await db.user.update({
+    where: { id: session.user.id },
+    data: { passwordHash: newHash },
+  })
+
+  const resetToken = randomBytes(32).toString('hex')
+  await db.user.update({
+    where: { id: session.user.id },
+    data: { resetToken, resetTokenExpiry: new Date(Date.now() + 1000 * 60 * 60) },
+  })
+
+  try {
+    await sendPasswordChangedEmail({ to: user.email, toName: user.name, resetToken })
+  } catch {
+    // email failure must not break the action
+  }
 }
 
 export async function updateProfile(formData: FormData) {
