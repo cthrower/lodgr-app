@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutGrid, List, FileText, Plus } from 'lucide-react'
+import { LayoutGrid, List, FileText, Plus, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type Project = {
@@ -23,6 +23,7 @@ export default function ProjectHeader({ project, onAddTask }: Props) {
   const isBoard = pathname === `/projects/${project.slug}`
   const isList = pathname === `/projects/${project.slug}/list`
   const isDocs = pathname.startsWith(`/projects/${project.slug}/docs`)
+  const isSettings = pathname === `/projects/${project.slug}/settings`
 
   return (
     <div className="flex items-center gap-4 px-5 py-2.5 border-b shrink-0 border-[var(--border)] bg-[var(--surface)]">
@@ -71,6 +72,18 @@ export default function ProjectHeader({ project, onAddTask }: Props) {
           >
             <FileText className="h-3.5 w-3.5" />
             Docs
+          </Link>
+          <Link
+            href={`/projects/${project.slug}/settings`}
+            className={cn(
+              'flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-all duration-150',
+              isSettings
+                ? 'bg-[var(--surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+            )}
+          >
+            <Settings className="h-3.5 w-3.5" />
+            Settings
           </Link>
         </div>
 

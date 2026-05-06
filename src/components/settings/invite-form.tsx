@@ -3,27 +3,26 @@
 import { useState } from 'react'
 import { UserPlus } from 'lucide-react'
 import { inviteUser } from '@/actions/users'
+import { useToast } from '@/components/ui/toast'
 
 export default function InviteForm() {
   const [email, setEmail] = useState('')
-  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
-  const [message, setMessage] = useState<string | null>(null)
+  const [status, setStatus] = useState<'idle' | 'loading'>('idle')
+  const { success, error: toastError } = useToast()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setStatus('loading')
-    setMessage(null)
     try {
       const fd = new FormData()
       fd.set('email', email)
       const user = await inviteUser(fd)
       setEmail('')
-      setStatus('success')
-      setMessage(`Invite sent to ${user.email}. They'll receive login credentials by email.`)
-      setTimeout(() => { setStatus('idle'); setMessage(null) }, 5000)
+      success(`Invite sent to ${user.email}. They'll receive login credentials by email.`)
     } catch (err) {
-      setStatus('error')
-      setMessage(err instanceof Error ? err.message : 'Something went wrong')
+      toastError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setStatus('idle')
     }
   }
 
@@ -47,11 +46,6 @@ export default function InviteForm() {
           {status === 'loading' ? 'Sending…' : 'Invite'}
         </button>
       </div>
-      {message && (
-        <p className={`text-sm ${status === 'success' ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
-          {message}
-        </p>
-      )}
     </form>
   )
 }

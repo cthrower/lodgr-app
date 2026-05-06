@@ -108,6 +108,10 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function shortcutLabel(combo: string) {
+  return combo.replace('Cmd', 'Ctrl/Cmd')
+}
+
 function CommentBubble({
   comment,
   onDelete,
@@ -369,6 +373,7 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
             <button
               onClick={handleClose}
               className="h-7 w-7 rounded-lg flex items-center justify-center transition-all text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
+              title={`Close (${shortcutLabel('Esc')})`}
             >
               <X className="h-4 w-4" />
             </button>
@@ -472,9 +477,13 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
                               disabled={postingReply || !replyText.trim()}
                               style={{ background: 'var(--gradient-primary)' }}
                               className="rounded-xl px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40 transition-all hover:opacity-90"
+                              title={`Post reply (${shortcutLabel('Cmd+Enter')})`}
                             >
                               {postingReply ? 'Posting…' : 'Post reply'}
                             </button>
+                            <span className="text-[11px] text-[var(--text-muted)]">
+                              {shortcutLabel('Cmd+Enter')} to post, {shortcutLabel('Esc')} to cancel
+                            </span>
                             <button
                               onClick={() => { setReplyingTo(null); setReplyText('') }}
                               className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
@@ -504,9 +513,13 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
                       disabled={postingComment || !commentText.trim()}
                       style={{ background: 'var(--gradient-primary)' }}
                       className="mt-2 rounded-xl px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40 transition-all hover:opacity-90"
+                      title={`Post comment (${shortcutLabel('Cmd+Enter')})`}
                     >
                       {postingComment ? 'Posting…' : 'Post comment'}
                     </button>
+                    <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+                      Shortcuts: {shortcutLabel('Cmd+Enter')} to post, {shortcutLabel('Esc')} to close modal
+                    </p>
                   </div>
                 </div>
               )}

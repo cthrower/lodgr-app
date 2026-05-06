@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Plus, ArchiveRestore, FolderKanban } from 'lucide-react'
-import { restoreProject } from '@/actions/projects'
+import { createProject, restoreProject } from '@/actions/projects'
 import { bgTintClassForColor } from '@/lib/color-classes'
 import { cn } from '@/lib/utils'
 
@@ -16,12 +16,20 @@ export default async function ProjectsPage() {
 
   const [projects, archivedProjects] = await Promise.all([
     db.project.findMany({
-      where: { workspaceId: user.workspaceId, archived: false },
+      where: {
+        workspaceId: user.workspaceId,
+        archived: false,
+        OR: [{ isPrivate: false }, { createdById: user.id }],
+      },
       orderBy: { createdAt: 'asc' },
       include: { _count: { select: { tasks: true } } },
     }),
     db.project.findMany({
-      where: { workspaceId: user.workspaceId, archived: true },
+      where: {
+        workspaceId: user.workspaceId,
+        archived: true,
+        OR: [{ isPrivate: false }, { createdById: user.id }],
+      },
       orderBy: { createdAt: 'asc' },
       include: { _count: { select: { tasks: true } } },
     }),
@@ -60,14 +68,35 @@ export default async function ProjectsPage() {
           <p className="text-sm mb-6 text-[var(--text-muted)]">
             Create your first project to get started
           </p>
-          <Link
-            href="/projects/new"
-            style={{ background: 'var(--gradient-primary)', boxShadow: 'var(--shadow-primary)' }}
-            className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white hover:opacity-90 transition-all"
-          >
-            <Plus className="h-4 w-4" />
-            New project
-          </Link>
+          <form action={createProject} className="max-w-md mx-auto text-left space-y-3 px-6">
+            <label className="block text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)]">
+              Quick create
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                name="name"
+                required
+                placeholder="Project name"
+                className="flex-1 rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 border-[var(--border)] bg-[var(--surface)] text-[var(--text-primary)]"
+              />
+              <button
+                type="submit"
+                style={{ background: 'var(--gradient-primary)', boxShadow: 'var(--shadow-primary)' }}
+                className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white hover:opacity-90 transition-all"
+              >
+                <Plus className="h-4 w-4" />
+                Create
+              </button>
+            </div>
+            <label className="inline-flex items-center gap-2 text-xs text-[var(--text-muted)]">
+              <input type="checkbox" name="isPrivate" className="rounded" />
+              Private project
+            </label>
+            <p className="text-xs text-[var(--text-muted)]">
+              Need full options? <Link href="/projects/new" className="underline hover:text-[var(--text-secondary)]">Open advanced project setup</Link>
+            </p>
+          </form>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -98,9 +127,16 @@ export default async function ProjectsPage() {
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-[var(--surface-hover)] text-[var(--text-muted)]">
-                  {project._count.tasks} {project._count.tasks === 1 ? 'task' : 'tasks'}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  {project.isPrivate && (
+                    <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold border border-[var(--border)] text-[var(--text-muted)]">
+                      Private
+                    </span>
+                  )}
+                  <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium bg-[var(--surface-hover)] text-[var(--text-muted)]">
+                    {project._count.tasks} {project._count.tasks === 1 ? 'task' : 'tasks'}
+                  </span>
+                </div>
               </div>
             </Link>
           ))}

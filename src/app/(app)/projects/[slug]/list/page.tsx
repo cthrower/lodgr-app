@@ -27,7 +27,12 @@ export default async function ProjectListPage({
   if (!user) redirect('/login')
 
   const project = await db.project.findFirst({
-    where: { slug, workspaceId: user.workspaceId, archived: false },
+    where: {
+      slug,
+      workspaceId: user.workspaceId,
+      archived: false,
+      OR: [{ isPrivate: false }, { createdById: user.id }],
+    },
     include: {
       columns: {
         orderBy: { position: 'asc' },

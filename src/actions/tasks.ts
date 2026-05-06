@@ -1,30 +1,75 @@
-'use server'
+"use server";
 
-import { auth } from '@/auth'
-import { db } from '@/lib/db'
-import { revalidatePath } from 'next/cache'
-import { sendTaskAssignedEmail } from '@/lib/email'
+import { auth } from "@/auth";
+import { db } from "@/lib/db";
+import { revalidatePath } from "next/cache";
+import { sendTaskAssignedEmail } from "@/lib/email";
+
+async function getCurrentUser() {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+
+  const user = await db.user.findUnique({ where: { id: session.user.id } });
+  if (!user) throw new Error("User not found");
+
+  return user;
+}
+
+async function ensureProjectAccess(
+  projectId: string,
+  userId: string,
+  workspaceId: string,
+) {
+  const project = await db.project.findFirst({
+    where: {
+      id: projectId,
+      workspaceId,
+      archived: false,
+      OR: [{ isPrivate: false }, { createdById: userId }],
+    },
+    select: { id: true },
+  });
+
+  if (!project) throw new Error("Project not found");
+}
+
+async function ensureTaskAccess(
+  taskId: string,
+  userId: string,
+  workspaceId: string,
+) {
+  const task = await db.task.findFirst({
+    where: {
+      id: taskId,
+      project: {
+        workspaceId,
+        archived: false,
+        OR: [{ isPrivate: false }, { createdById: userId }],
+      },
+    },
+    select: { id: true },
+  });
+
+  if (!task) throw new Error("Task not found");
+}
 
 export async function createTask({
   projectId,
   columnId,
   title,
 }: {
-  projectId: string
-  columnId: string
-  title: string
+  projectId: string;
+  columnId: string;
+  title: string;
 }) {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error('Unauthorized')
-
-  const user = await db.user.findUnique({ where: { id: session.user.id } })
-  if (!user) throw new Error('User not found')
+  const user = await getCurrentUser();
+  await ensureProjectAccess(projectId, user.id, user.workspaceId);
 
   const lastTask = await db.task.findFirst({
     where: { columnId },
-    orderBy: { position: 'desc' },
+    orderBy: { position: "desc" },
     select: { position: true },
-  })
+  });
 
   const task = await db.task.create({
     data: {
@@ -38,10 +83,10 @@ export async function createTask({
       assignee: { select: { id: true, name: true, avatarUrl: true } },
       labels: { include: { label: true } },
     },
-  })
+  });
 
-  revalidatePath('/projects')
-  return task
+  revalidatePath("/projects");
+  return task;
 }
 
 export async function moveTask({
@@ -49,58 +94,61 @@ export async function moveTask({
   columnId,
   position,
 }: {
-  taskId: string
-  columnId: string
-  position: number
+  taskId: string;
+  columnId: string;
+  position: number;
 }) {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error('Unauthorized')
+  const user = await getCurrentUser();
+  await ensureTaskAccess(taskId, user.id, user.workspaceId);
 
   await db.task.update({
     where: { id: taskId },
     data: { columnId, position },
-  })
+  });
 }
 
 export async function updateTask(
   taskId: string,
   data: {
-    title?: string
-    description?: unknown
-    priority?: 'none' | 'low' | 'medium' | 'high' | 'urgent'
-    assigneeId?: string | null
-    columnId?: string
-    dueDate?: Date | null
-  }
+    title?: string;
+    description?: unknown;
+    priority?: "none" | "low" | "medium" | "high" | "urgent";
+    assigneeId?: string | null;
+    columnId?: string;
+    dueDate?: Date | null;
+  },
 ) {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error('Unauthorized')
+  const user = await getCurrentUser();
+  await ensureTaskAccess(taskId, user.id, user.workspaceId);
 
-  const prev = await db.task.findUnique({ where: { id: taskId }, select: { assigneeId: true } })
+  const prev = await db.task.findUnique({
+    where: { id: taskId },
+    select: { assigneeId: true },
+  });
 
   const task = await db.task.update({
     where: { id: taskId },
-    data: data as Parameters<typeof db.task.update>[0]['data'],
+    data: data as Parameters<typeof db.task.update>[0]["data"],
     include: {
       assignee: { select: { id: true, name: true, avatarUrl: true } },
       labels: { include: { label: true } },
       column: { select: { name: true } },
     },
-  })
+  });
 
   if (
     data.assigneeId &&
     data.assigneeId !== prev?.assigneeId &&
-    data.assigneeId !== session.user.id
+    data.assigneeId !== user.id
   ) {
     await db.notification.create({
       data: {
         userId: data.assigneeId,
-        type: 'assigned',
-        entityType: 'task',
+        type: "assigned",
+        entityType: "task",
         entityId: taskId,
       },
-    })
+    });
 
     try {
       const [assignee, assigner, taskWithProject] = await Promise.all([
@@ -109,14 +157,14 @@ export async function updateTask(
           select: { email: true, name: true },
         }),
         db.user.findUnique({
-          where: { id: session.user.id },
+          where: { id: user.id },
           select: { name: true },
         }),
         db.task.findUnique({
           where: { id: taskId },
           include: { project: { select: { slug: true } } },
         }),
-      ])
+      ]);
 
       if (assignee && assigner && taskWithProject) {
         await sendTaskAssignedEmail({
@@ -125,21 +173,21 @@ export async function updateTask(
           taskTitle: taskWithProject.title,
           assignerName: assigner.name,
           projectSlug: taskWithProject.project.slug,
-        })
+        });
       }
     } catch {
       // email failure must not break the action
     }
   }
 
-  revalidatePath('/projects')
-  return task
+  revalidatePath("/projects");
+  return task;
 }
 
 export async function deleteTask(taskId: string) {
-  const session = await auth()
-  if (!session?.user?.id) throw new Error('Unauthorized')
+  const user = await getCurrentUser();
+  await ensureTaskAccess(taskId, user.id, user.workspaceId);
 
-  await db.task.delete({ where: { id: taskId } })
-  revalidatePath('/projects')
+  await db.task.delete({ where: { id: taskId } });
+  revalidatePath("/projects");
 }

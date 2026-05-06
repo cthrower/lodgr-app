@@ -22,6 +22,8 @@ type Props = {
   column: ColumnData
   projectId: string
   onTaskClick?: (taskId: string) => void
+  onTaskCreated?: (columnId: string, task: TaskCardData) => void
+  onError?: (message: string) => void
   onRename: (id: string, name: string) => void
   onDelete: (id: string) => void
   isOnlyColumn: boolean
@@ -31,6 +33,8 @@ export default function KanbanColumn({
   column,
   projectId,
   onTaskClick,
+  onTaskCreated,
+  onError,
   onRename,
   onDelete,
   isOnlyColumn,
@@ -64,9 +68,22 @@ export default function KanbanColumn({
     if (!newTitle.trim()) return
     setSaving(true)
     try {
-      await createTask({ projectId, columnId: column.id, title: newTitle })
+      const task = await createTask({ projectId, columnId: column.id, title: newTitle })
+      onTaskCreated?.(column.id, {
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        priority: task.priority,
+        columnId: task.columnId,
+        assigneeId: task.assigneeId,
+        assignee: task.assignee,
+        labels: task.labels.map((entry) => ({ label: entry.label })),
+        dueDate: task.dueDate ? task.dueDate.toISOString() : null,
+      })
       setNewTitle('')
       setAdding(false)
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : 'Failed to add task')
     } finally {
       setSaving(false)
     }
@@ -86,7 +103,13 @@ export default function KanbanColumn({
     }
     onRename(column.id, trimmed)
     setEditing(false)
-    await updateColumn({ id: column.id, name: trimmed })
+    try {
+      await updateColumn({ id: column.id, name: trimmed })
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : 'Failed to rename column')
+      onRename(column.id, column.name)
+      setEditName(column.name)
+    }
   }
 
   async function handleDelete() {
@@ -96,7 +119,11 @@ export default function KanbanColumn({
       : 'Delete this column? Tasks will be moved to the first remaining column.'
     if (!confirm(msg)) return
     onDelete(column.id)
-    await deleteColumn(column.id)
+    try {
+      await deleteColumn(column.id)
+    } catch (err) {
+      onError?.(err instanceof Error ? err.message : 'Failed to delete column')
+    }
   }
 
   return (

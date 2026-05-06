@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, useMemo } from 'react'
-import { useEditor, EditorContent } from '@tiptap/react'
+import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react'
 import { Extension } from '@tiptap/core'
 import type { Editor, Range } from '@tiptap/core'
 import Suggestion from '@tiptap/suggestion'
@@ -27,6 +27,7 @@ import {
   Heading3,
   CheckSquare,
   Minus,
+  Link as LinkIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -205,6 +206,52 @@ export default function TiptapEditor({
 
   return (
     <div className={cn('rounded-lg border border-[var(--border)]', className)}>
+      {/* Floating bubble menu — appears on text selection */}
+      {editable && (
+        <BubbleMenu
+          editor={editor}
+          tippyOptions={{ duration: 100, placement: 'top', offset: [0, 8] }}
+          className="flex items-center gap-0.5 rounded-lg border shadow-[var(--shadow-md)] px-1.5 py-1 border-[var(--border)] bg-[var(--surface)]"
+        >
+          <Btn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold">
+            <Bold className="h-3.5 w-3.5" />
+          </Btn>
+          <Btn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title="Italic">
+            <Italic className="h-3.5 w-3.5" />
+          </Btn>
+          <Btn onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title="Underline">
+            <UnderlineIcon className="h-3.5 w-3.5" />
+          </Btn>
+          <Btn onClick={() => editor.chain().focus().toggleCode().run()} active={editor.isActive('code')} title="Inline code">
+            <Code className="h-3.5 w-3.5" />
+          </Btn>
+          <Sep />
+          <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} title="H1">
+            <Heading1 className="h-3.5 w-3.5" />
+          </Btn>
+          <Btn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} title="H2">
+            <Heading2 className="h-3.5 w-3.5" />
+          </Btn>
+          <Sep />
+          <Btn
+            onClick={() => {
+              const prev = editor.getAttributes('link').href ?? ''
+              const url = window.prompt('Link URL:', prev)
+              if (url === null) return
+              if (!url) { editor.chain().focus().unsetLink().run(); return }
+              editor.chain().focus().setLink({ href: url, target: '_blank' }).run()
+            }}
+            active={editor.isActive('link')}
+            title="Link"
+          >
+            <LinkIcon className="h-3.5 w-3.5" />
+          </Btn>
+          <Btn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} title="Quote">
+            <Quote className="h-3.5 w-3.5" />
+          </Btn>
+        </BubbleMenu>
+      )}
+
       {editable && (
         <div
           className="flex items-center gap-0.5 px-2 py-1.5 border-b flex-wrap border-[var(--border)] bg-[var(--sidebar-bg)] rounded-t-lg"
@@ -258,7 +305,13 @@ export default function TiptapEditor({
 
       {slashMenu && slashMenu.items.length > 0 && slashMenu.rect && (
         <div
-          className="fixed top-24 left-1/2 -translate-x-1/2 z-[9999] rounded-lg border overflow-hidden border-[var(--border)] bg-[var(--surface)] shadow-2xl min-w-[230px]"
+          style={{
+            position: 'fixed',
+            top: slashMenu.rect.bottom + 6,
+            left: Math.min(slashMenu.rect.left, window.innerWidth - 250),
+            zIndex: 9999,
+          }}
+          className="rounded-lg border overflow-hidden border-[var(--border)] bg-[var(--surface)] shadow-2xl min-w-[230px]"
         >
           {slashMenu.items.map((cmd, i) => (
             <button

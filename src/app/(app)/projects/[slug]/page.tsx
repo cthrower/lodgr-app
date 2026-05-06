@@ -18,7 +18,12 @@ export default async function ProjectKanbanPage({
 
   const [project, members, labels] = await Promise.all([
     db.project.findFirst({
-      where: { slug, workspaceId: user.workspaceId, archived: false },
+      where: {
+        slug,
+        workspaceId: user.workspaceId,
+        archived: false,
+        OR: [{ isPrivate: false }, { createdById: user.id }],
+      },
       include: {
         columns: {
           orderBy: { position: 'asc' },

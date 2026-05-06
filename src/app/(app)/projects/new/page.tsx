@@ -114,6 +114,13 @@ export default function NewProjectPage() {
             </div>
           </div>
 
+          <label className="flex items-start gap-3 rounded-lg border p-3 border-[var(--border)] bg-[var(--background)]">
+            <input type="checkbox" name="isPrivate" className="mt-0.5" />
+            <span className="text-sm text-[var(--text-secondary)]">
+              Make this project private (only you can see it)
+            </span>
+          </label>
+
           <div className="flex gap-3 pt-2">
             <button
               type="submit"

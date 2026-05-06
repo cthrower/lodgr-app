@@ -101,6 +101,7 @@ model Project {
   description String?
   colour      String   @default("#6366f1")
   icon        String   @default("📁")
+  isPrivate   Boolean  @default(false) @map("is_private")
   archived    Boolean  @default(false)
   createdById String   @map("created_by")
   createdAt   DateTime @default(now()) @map("created_at")

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { User } from 'lucide-react'
 import LabelsManager from '@/components/settings/labels-manager'
 import InviteForm from '@/components/settings/invite-form'
+import WorkspaceNameForm from '@/components/settings/workspace-name-form'
 
 export default async function SettingsPage() {
   const session = await auth()
@@ -38,14 +39,18 @@ export default async function SettingsPage() {
           <h2 className="text-base font-medium mb-4 text-[var(--text-primary)]">
             Workspace
           </h2>
-          <div>
-            <label className="block text-sm font-medium mb-1 text-[var(--text-secondary)]">
-              Name
-            </label>
-            <p className="text-sm text-[var(--text-primary)]">
-              {user.workspace.name}
-            </p>
-          </div>
+          {user.role === 'owner' ? (
+            <WorkspaceNameForm initialName={user.workspace.name} />
+          ) : (
+            <div>
+              <label className="block text-sm font-medium mb-1 text-[var(--text-secondary)]">
+                Name
+              </label>
+              <p className="text-sm text-[var(--text-primary)]">
+                {user.workspace.name}
+              </p>
+            </div>
+          )}
         </section>
 
         {/* Members */}

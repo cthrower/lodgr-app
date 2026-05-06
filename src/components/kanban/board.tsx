@@ -18,6 +18,7 @@ import TaskModal, { type ModalTask } from '@/components/task/task-modal'
 import { moveTask } from '@/actions/tasks'
 import { createColumn, reorderColumns } from '@/actions/columns'
 import { Plus, X, ChevronDown, SlidersHorizontal } from 'lucide-react'
+import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import { bgClassForColor, bgTintClassForColor, borderClassForColor, textClassForColor } from '@/lib/color-classes'
 
@@ -91,6 +92,7 @@ export default function KanbanBoard({ project, members, labels }: Props) {
   const [addingColumn, setAddingColumn] = useState(false)
   const [newColName, setNewColName] = useState('')
   const [savingCol, setSavingCol] = useState(false)
+  const { success: toastSuccess, error: toastError } = useToast()
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -196,28 +198,29 @@ export default function KanbanBoard({ project, members, labels }: Props) {
       if (fromIdx !== -1 && toIdx !== -1 && fromIdx !== toIdx) {
         const reordered = arrayMove(columns, fromIdx, toIdx)
         setColumns(reordered)
-        await reorderColumns(reordered.map((c, i) => ({ id: c.id, position: i })))
+        try {
+          await reorderColumns(reordered.map((c, i) => ({ id: c.id, position: i })))
+          toastSuccess('Column order saved.')
+        } catch (err) {
+          toastError(err instanceof Error ? err.message : 'Failed to save column order')
+        }
       }
       return
     }
 
-    // Task reorder within same column
-    const colIdx = columns.findIndex((c) => c.tasks.some((t) => t.id === activeId))
-    if (colIdx === -1) return
+    const destinationCol = columns.find((c) => c.id === overId || c.tasks.some((t) => t.id === overId))
+    if (!destinationCol) return
 
-    const col = columns[colIdx]
-    const fromIdx = col.tasks.findIndex((t) => t.id === activeId)
-    const toIdx = col.tasks.findIndex((t) => t.id === overId)
-
-    if (fromIdx !== toIdx && toIdx !== -1) {
-      setColumns((cols) => {
-        const updated = cols.map((c) => ({ ...c, tasks: [...c.tasks] }))
-        updated[colIdx].tasks = arrayMove(updated[colIdx].tasks, fromIdx, toIdx)
-        return updated
+    const destinationIndex = destinationCol.tasks.findIndex((t) => t.id === activeId)
+    try {
+      await moveTask({
+        taskId: activeId,
+        columnId: destinationCol.id,
+        position: destinationIndex === -1 ? destinationCol.tasks.length : destinationIndex,
       })
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : 'Failed to move task')
     }
-
-    await moveTask({ taskId: activeId, columnId: col.id, position: fromIdx })
   }
 
   async function handleAddColumn() {
@@ -231,9 +234,19 @@ export default function KanbanBoard({ project, members, labels }: Props) {
       ])
       setNewColName('')
       setAddingColumn(false)
+      toastSuccess('Column added.')
+    } catch (err) {
+      toastError(err instanceof Error ? err.message : 'Failed to add column')
     } finally {
       setSavingCol(false)
     }
+  }
+
+  function handleTaskCreated(columnId: string, task: TaskCardData) {
+    setColumns((prev) =>
+      prev.map((col) => (col.id === columnId ? { ...col, tasks: [...col.tasks, task] } : col))
+    )
+    toastSuccess('Task added.')
   }
 
   function handleRenameColumn(id: string, name: string) {
@@ -265,6 +278,7 @@ export default function KanbanBoard({ project, members, labels }: Props) {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
+
       {/* Filter bar */}
       <div className="flex items-center gap-2 px-4 py-2.5 border-b shrink-0 border-[var(--border)] bg-[var(--surface)]">
         <span className="flex items-center gap-1.5 text-xs font-medium mr-1 text-[var(--text-muted)]">
@@ -444,6 +458,8 @@ export default function KanbanBoard({ project, members, labels }: Props) {
                   column={column}
                   projectId={project.id}
                   onTaskClick={(id) => setOpenTaskId(id)}
+                  onTaskCreated={handleTaskCreated}
+                  onError={(message) => toastError(message)}
                   onRename={handleRenameColumn}
                   onDelete={handleDeleteColumn}
                   isOnlyColumn={columns.length === 1}

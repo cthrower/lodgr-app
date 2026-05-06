@@ -16,7 +16,15 @@ export default async function DocPage({
   if (!user) redirect('/login')
 
   const doc = await db.doc.findFirst({
-    where: { slug, workspaceId: user.workspaceId },
+    where: {
+      slug,
+      workspaceId: user.workspaceId,
+      OR: [
+        { projectId: null },
+        { project: { isPrivate: false } },
+        { project: { createdById: user.id } },
+      ],
+    },
     include: {
       children: { orderBy: { position: 'asc' }, select: { id: true, title: true, slug: true } },
       project: { select: { name: true, slug: true } },
