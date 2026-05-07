@@ -6,7 +6,7 @@ import { signOut } from 'next-auth/react'
 import { cn } from '@/lib/utils'
 import {
   FileText, Settings, LogOut, Plus, Moon, Sun,
-  ChevronLeft, ChevronRight, ChevronDown, PanelLeftClose, PanelLeft,
+  ChevronRight, ChevronDown, PanelLeftClose,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import NotificationBell from '@/components/notification-bell'

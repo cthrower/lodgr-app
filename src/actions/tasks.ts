@@ -2,6 +2,7 @@
 
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { sendTaskAssignedEmail } from "@/lib/email";
 
@@ -126,9 +127,31 @@ export async function updateTask(
     select: { assigneeId: true },
   });
 
+  const updateData: Prisma.TaskUpdateInput = {
+    ...(data.title !== undefined ? { title: data.title } : {}),
+    ...(data.description !== undefined
+      ? {
+          description:
+            data.description === null
+              ? Prisma.JsonNull
+              : (data.description as Prisma.InputJsonValue),
+        }
+      : {}),
+    ...(data.priority !== undefined ? { priority: data.priority } : {}),
+    ...(data.assigneeId !== undefined
+      ? data.assigneeId === null
+        ? { assignee: { disconnect: true } }
+        : { assignee: { connect: { id: data.assigneeId } } }
+      : {}),
+    ...(data.columnId !== undefined
+      ? { column: { connect: { id: data.columnId } } }
+      : {}),
+    ...(data.dueDate !== undefined ? { dueDate: data.dueDate } : {}),
+  };
+
   const task = await db.task.update({
     where: { id: taskId },
-    data: data as Parameters<typeof db.task.update>[0]["data"],
+    data: updateData,
     include: {
       assignee: { select: { id: true, name: true, avatarUrl: true } },
       labels: { include: { label: true } },

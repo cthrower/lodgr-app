@@ -119,7 +119,7 @@ export async function createComment({
 
     for (const token of mentionTokens) {
       const matched = workspaceUsers.find(
-        (u) =>
+        (u: { id: string; name: string; email: string }) =>
           u.name.toLowerCase().startsWith(token) ||
           u.name.toLowerCase().replace(/\s+/g, "") === token,
       );

@@ -7,6 +7,13 @@ import ProjectHeader from '@/components/project-header'
 import { createDoc } from '@/actions/docs'
 import { format } from 'date-fns'
 
+type ProjectDocItem = {
+  id: string
+  slug: string
+  title: string
+  updatedAt: Date
+}
+
 export default async function ProjectDocsPage({
   params,
 }: {
@@ -63,7 +70,7 @@ export default async function ProjectDocsPage({
           <p className="text-sm text-[var(--text-muted)]">No docs yet for this project.</p>
         ) : (
           <div className="space-y-0.5">
-            {docs.map((doc) => (
+            {docs.map((doc: ProjectDocItem) => (
               <Link
                 key={doc.id}
                 href={`/docs/${doc.slug}`}

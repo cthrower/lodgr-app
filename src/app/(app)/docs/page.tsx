@@ -6,6 +6,13 @@ import { FileText, Plus } from 'lucide-react'
 import { createDoc } from '@/actions/docs'
 import { format } from 'date-fns'
 
+type DocListItem = {
+  id: string
+  slug: string
+  title: string
+  updatedAt: Date
+}
+
 async function handleCreate() {
   'use server'
   await createDoc({ title: 'Untitled' })
@@ -58,7 +65,7 @@ export default async function DocsPage() {
         </div>
       ) : (
         <div className="space-y-1">
-          {docs.map((doc) => (
+          {docs.map((doc: DocListItem) => (
             <Link
               key={doc.id}
               href={`/docs/${doc.slug}`}
