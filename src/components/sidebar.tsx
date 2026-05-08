@@ -180,6 +180,13 @@ export default function Sidebar({ user, workspace, projects }: SidebarProps) {
                           <span className="shrink-0 text-base leading-none">{project.icon}</span>
                           <span className="truncate">{project.name}</span>
                         </Link>
+                        <Link
+                          href={`/projects/${project.slug}/docs`}
+                          title="New doc"
+                          className="opacity-0 group-hover/project:opacity-100 h-6 w-6 flex items-center justify-center shrink-0 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-opacity"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Link>
                       </div>
                       {isExpanded && hasDocs && (
                         <ul className="ml-7 mt-0.5 space-y-0.5">

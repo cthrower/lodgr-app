@@ -184,6 +184,8 @@ export default function TiptapEditor({
     []
   )
 
+  const editorRef = useRef<Editor | null>(null)
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ codeBlock: false }),
@@ -208,14 +210,14 @@ export default function TiptapEditor({
         if (!text || !looksLikeMarkdown(text)) return false
         event.preventDefault()
         const html = marked.parse(text, { async: false }) as string
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const editor = (_view as any).editor
-        editor?.commands.insertContent(html)
+        editorRef.current?.chain().focus().insertContent(html).run()
         return true
       },
     },
     immediatelyRender: false,
   })
+
+  editorRef.current = editor ?? null
 
   if (!editor) return null
 
