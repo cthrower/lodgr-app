@@ -1,8 +1,11 @@
+'use client'
+
 import { createProject } from '@/actions/projects'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { bgClassForColor } from '@/lib/color-classes'
 import { cn } from '@/lib/utils'
+import { useState } from 'react'
 
 const PRESET_COLOURS = [
   '#6366f1', '#ec4899', '#f59e0b', '#10b981',
@@ -12,6 +15,9 @@ const PRESET_COLOURS = [
 const PRESET_ICONS = ['📁', '🚀', '⚡', '🎯', '🔨', '💡', '🌟', '🎨', '📊', '🔬']
 
 export default function NewProjectPage() {
+  const [selectedColour, setSelectedColour] = useState(PRESET_COLOURS[0])
+  const [selectedIcon, setSelectedIcon] = useState(PRESET_ICONS[0])
+
   return (
     <div className="p-8 max-w-lg">
       <div className="flex items-center gap-3 mb-6">
@@ -68,24 +74,22 @@ export default function NewProjectPage() {
               Colour
             </label>
             <div className="flex gap-2 flex-wrap">
-              {PRESET_COLOURS.map((colour, i) => (
-                <label key={colour} className="cursor-pointer">
-                  <input
-                    type="radio"
-                    name="colour"
-                    value={colour}
-                    className="sr-only"
-                    defaultChecked={i === 0}
-                  />
-                  <div
-                    className={cn(
-                      'h-7 w-7 rounded-full border-2 border-transparent hover:scale-110 transition-transform',
-                      bgClassForColor(colour)
-                    )}
-                  />
-                </label>
+              {PRESET_COLOURS.map((colour) => (
+                <button
+                  key={colour}
+                  type="button"
+                  onClick={() => setSelectedColour(colour)}
+                  className={cn(
+                    'h-7 w-7 rounded-full transition-all',
+                    bgClassForColor(colour),
+                    selectedColour === colour
+                      ? 'ring-2 ring-offset-2 ring-offset-[var(--surface)] ring-[var(--text-primary)] scale-110'
+                      : 'hover:scale-110'
+                  )}
+                />
               ))}
             </div>
+            <input type="hidden" name="colour" value={selectedColour} />
           </div>
 
           <div>
@@ -95,23 +99,23 @@ export default function NewProjectPage() {
               Icon
             </label>
             <div className="flex gap-2 flex-wrap">
-              {PRESET_ICONS.map((icon, i) => (
-                <label key={icon} className="cursor-pointer">
-                  <input
-                    type="radio"
-                    name="icon"
-                    value={icon}
-                    className="sr-only"
-                    defaultChecked={i === 0}
-                  />
-                  <div
-                    className="h-9 w-9 rounded-lg border flex items-center justify-center text-lg hover:scale-105 transition-transform border-[var(--border)]"
-                  >
-                    {icon}
-                  </div>
-                </label>
+              {PRESET_ICONS.map((icon) => (
+                <button
+                  key={icon}
+                  type="button"
+                  onClick={() => setSelectedIcon(icon)}
+                  className={cn(
+                    'h-9 w-9 rounded-lg border flex items-center justify-center text-lg transition-all',
+                    selectedIcon === icon
+                      ? 'border-[var(--primary)] bg-[var(--primary)]/10 scale-110 ring-1 ring-[var(--primary)]'
+                      : 'border-[var(--border)] hover:scale-105 hover:border-[var(--text-muted)]'
+                  )}
+                >
+                  {icon}
+                </button>
               ))}
             </div>
+            <input type="hidden" name="icon" value={selectedIcon} />
           </div>
 
           <label className="flex items-start gap-3 rounded-lg border p-3 border-[var(--border)] bg-[var(--background)]">
