@@ -30,8 +30,13 @@ import {
   Link as LinkIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { marked } from 'marked'
 
 const lowlight = createLowlight(common)
+
+function looksLikeMarkdown(text: string): boolean {
+  return /^#{1,6} |^\s*[-*+] |\*\*|__|\[.+\]\(|^```|^> |^\d+\. /m.test(text)
+}
 
 type SlashCmd = {
   id: string
@@ -197,6 +202,16 @@ export default function TiptapEditor({
     editorProps: {
       attributes: {
         class: 'prose prose-sm max-w-none focus:outline-none min-h-[120px] text-[var(--text-primary)]',
+      },
+      handlePaste(_view, event) {
+        const text = event.clipboardData?.getData('text/plain') ?? ''
+        if (!text || !looksLikeMarkdown(text)) return false
+        event.preventDefault()
+        const html = marked.parse(text, { async: false }) as string
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const editor = (_view as any).editor
+        editor?.commands.insertContent(html)
+        return true
       },
     },
     immediatelyRender: false,
