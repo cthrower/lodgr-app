@@ -14,7 +14,7 @@ import NotificationBell from '@/components/notification-bell'
 type SidebarProps = {
   user: { id: string; name: string; email: string; avatarUrl: string | null }
   workspace: { name: string; slug: string }
-  projects: { id: string; name: string; slug: string; colour: string; icon: string }[]
+  projects: { id: string; name: string; slug: string; colour: string; icon: string; docs: { id: string; title: string; slug: string }[] }[]
 }
 
 const AVATAR_COLORS = [
@@ -41,6 +41,7 @@ export default function Sidebar({ user, workspace, projects }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [projectsOpen, setProjectsOpen] = useState(true)
   const [workspaceOpen, setWorkspaceOpen] = useState(true)
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set())
 
   // Persist theme & sidebar state
   useEffect(() => {
@@ -146,21 +147,73 @@ export default function Sidebar({ user, workspace, projects }: SidebarProps) {
               <ul className="space-y-0.5">
                 {projects.map((project) => {
                   const isActive = pathname.startsWith(`/projects/${project.slug}`)
+                  const isExpanded = expandedProjects.has(project.id)
+                  const hasDocs = project.docs.length > 0
                   return (
                     <li key={project.id}>
-                      <Link
-                        href={`/projects/${project.slug}`}
-                        style={isActive ? { background: 'var(--nav-active-bg)', color: 'var(--nav-active-text)' } : undefined}
-                        className={cn(
-                          'flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm transition-all duration-150',
-                          isActive
-                            ? 'font-medium'
-                            : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]'
+                      <div className="flex items-center gap-0.5 group/project">
+                        {hasDocs ? (
+                          <button
+                            onClick={() => setExpandedProjects((prev) => {
+                              const next = new Set(prev)
+                              if (next.has(project.id)) next.delete(project.id)
+                              else next.add(project.id)
+                              return next
+                            })}
+                            className="h-6 w-4 flex items-center justify-center shrink-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                          >
+                            <ChevronDown className={cn('h-3 w-3 transition-transform', !isExpanded && '-rotate-90')} />
+                          </button>
+                        ) : (
+                          <span className="w-4 shrink-0" />
                         )}
-                      >
-                        <span className="shrink-0 text-base leading-none">{project.icon}</span>
-                        <span className="truncate">{project.name}</span>
-                      </Link>
+                        <Link
+                          href={`/projects/${project.slug}`}
+                          style={isActive ? { background: 'var(--nav-active-bg)', color: 'var(--nav-active-text)' } : undefined}
+                          className={cn(
+                            'flex flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-all duration-150 min-w-0',
+                            isActive
+                              ? 'font-medium'
+                              : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]'
+                          )}
+                        >
+                          <span className="shrink-0 text-base leading-none">{project.icon}</span>
+                          <span className="truncate">{project.name}</span>
+                        </Link>
+                      </div>
+                      {isExpanded && hasDocs && (
+                        <ul className="ml-7 mt-0.5 space-y-0.5">
+                          {project.docs.map((doc) => {
+                            const docActive = pathname === `/docs/${doc.slug}`
+                            return (
+                              <li key={doc.id}>
+                                <Link
+                                  href={`/docs/${doc.slug}`}
+                                  style={docActive ? { background: 'var(--nav-active-bg)', color: 'var(--nav-active-text)' } : undefined}
+                                  className={cn(
+                                    'flex items-center gap-2 rounded-lg px-2 py-1 text-xs transition-all duration-150',
+                                    docActive
+                                      ? 'font-medium'
+                                      : 'text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]'
+                                  )}
+                                >
+                                  <FileText className="h-3 w-3 shrink-0 opacity-60" />
+                                  <span className="truncate">{doc.title}</span>
+                                </Link>
+                              </li>
+                            )
+                          })}
+                          <li>
+                            <Link
+                              href={`/projects/${project.slug}/docs`}
+                              className="flex items-center gap-2 rounded-lg px-2 py-1 text-xs transition-all text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
+                            >
+                              <Plus className="h-3 w-3 shrink-0" />
+                              <span>New doc</span>
+                            </Link>
+                          </li>
+                        </ul>
+                      )}
                     </li>
                   )
                 })}

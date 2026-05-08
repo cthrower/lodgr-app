@@ -11,6 +11,7 @@ type WorkspaceProject = {
   slug: string
   colour: string
   icon: string
+  docs: { id: string; title: string; slug: string }[]
 }
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -28,6 +29,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               OR: [{ isPrivate: false }, { createdById: session.user.id }],
             },
             orderBy: { createdAt: 'asc' },
+            include: {
+              docs: {
+                where: { parentId: null },
+                orderBy: { position: 'asc' },
+                select: { id: true, title: true, slug: true },
+              },
+            },
           },
         },
       },
@@ -48,6 +56,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             slug: p.slug,
             colour: p.colour,
             icon: p.icon,
+            docs: p.docs,
           }))}
         />
         <main className="flex-1 overflow-y-auto">{children}</main>
