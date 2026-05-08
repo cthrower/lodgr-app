@@ -6,6 +6,7 @@ import { User } from 'lucide-react'
 import LabelsManager from '@/components/settings/labels-manager'
 import InviteForm from '@/components/settings/invite-form'
 import WorkspaceNameForm from '@/components/settings/workspace-name-form'
+import MembersList from '@/components/settings/members-list'
 
 export default async function SettingsPage() {
   const session = await auth()
@@ -60,30 +61,19 @@ export default async function SettingsPage() {
           <h2 className="text-base font-medium mb-4 text-[var(--text-primary)]">
             Members
           </h2>
-          <ul className="space-y-3 mb-4">
-            {user.workspace.users.map((member) => (
-              <li key={member.id} className="flex items-center gap-3">
-                <div
-                  className="h-8 w-8 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0 bg-[var(--primary)]"
-                >
-                  {member.name[0].toUpperCase()}
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-[var(--text-primary)]">
-                    {member.name}
-                    {member.id === user.id && (
-                      <span className="ml-2 text-xs text-[var(--text-muted)]">
-                        (you)
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-xs text-[var(--text-muted)]">
-                    {member.email} · {member.role}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <div className="mb-4">
+            <MembersList
+              members={user.workspace.users.map((m) => ({
+                id: m.id,
+                name: m.name,
+                email: m.email,
+                role: m.role,
+                invitePending: m.invitePending,
+              }))}
+              currentUserId={user.id}
+              isOwner={user.role === 'owner'}
+            />
+          </div>
           {user.role === 'owner' && (
             <div className="pt-4 border-t border-[var(--border)]">
               <p className="text-sm font-medium mb-2 text-[var(--text-primary)]">

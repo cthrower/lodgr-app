@@ -31,8 +31,9 @@ model User {
   resetTokenExpiry  DateTime? @map("reset_token_expiry")
   role              UserRole  @default(member)
   avatarUrl    String?  @map("avatar_url")
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now()) @map("created_at")
+  active         Boolean  @default(true)
+  invitePending  Boolean  @default(false) @map("invite_pending")
+  createdAt      DateTime @default(now()) @map("created_at")
 
   workspace     Workspace      @relation(fields: [workspaceId], references: [id])
   projects      Project[]      @relation("ProjectCreator")

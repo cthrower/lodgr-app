@@ -40,6 +40,7 @@ export async function inviteUser(formData: FormData) {
       name,
       passwordHash,
       role: "member",
+      invitePending: true,
     },
     select: { id: true, email: true, name: true },
   });
@@ -51,8 +52,8 @@ export async function inviteUser(formData: FormData) {
       workspaceName: currentUser.workspace.name,
       tempPassword,
     });
-  } catch {
-    // email failure must not break the action
+  } catch (err) {
+    console.error('[invite] email send failed:', err)
   }
 
   revalidatePath("/settings");
@@ -86,7 +87,7 @@ export async function changePassword(formData: FormData) {
   const newHash = await hash(newPassword, 12);
   await db.user.update({
     where: { id: session.user.id },
-    data: { passwordHash: newHash },
+    data: { passwordHash: newHash, invitePending: false },
   });
 
   const resetToken = randomBytes(32).toString("hex");
@@ -127,6 +128,71 @@ export async function updateProfile(formData: FormData) {
   revalidatePath("/settings/profile");
   revalidatePath("/", "layout");
   return { ok: true, message: "Profile updated successfully." };
+}
+
+export async function deleteUser(userId: string) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+
+  const currentUser = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { role: true, workspaceId: true },
+  });
+  if (!currentUser || currentUser.role !== "owner")
+    throw new Error("Only owners can remove members");
+
+  if (userId === session.user.id) throw new Error("You cannot remove yourself");
+
+  const target = await db.user.findUnique({
+    where: { id: userId },
+    select: { role: true, workspaceId: true },
+  });
+  if (!target || target.workspaceId !== currentUser.workspaceId)
+    throw new Error("User not found");
+  if (target.role === "owner") throw new Error("Cannot remove another owner");
+
+  await db.user.update({ where: { id: userId }, data: { active: false } });
+
+  revalidatePath("/settings");
+  return { ok: true };
+}
+
+export async function resendInvite(userId: string) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Unauthorized");
+
+  const currentUser = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { role: true, workspaceId: true, workspace: { select: { name: true } } },
+  });
+  if (!currentUser || currentUser.role !== "owner")
+    throw new Error("Only owners can resend invites");
+
+  const target = await db.user.findUnique({
+    where: { id: userId },
+    select: { email: true, name: true, invitePending: true, workspaceId: true },
+  });
+  if (!target || target.workspaceId !== currentUser.workspaceId)
+    throw new Error("User not found");
+  if (!target.invitePending) throw new Error("Invite already accepted");
+
+  const tempPassword = randomBytes(6).toString("hex");
+  const passwordHash = await hash(tempPassword, 12);
+
+  await db.user.update({ where: { id: userId }, data: { passwordHash } });
+
+  try {
+    await sendInviteEmail({
+      to: target.email,
+      toName: target.name,
+      workspaceName: currentUser.workspace.name,
+      tempPassword,
+    });
+  } catch (err) {
+    console.error("[resend-invite] email send failed:", err);
+  }
+
+  return { ok: true };
 }
 
 export async function updateWorkspaceName(formData: FormData) {
