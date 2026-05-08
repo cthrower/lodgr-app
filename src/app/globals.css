@@ -142,6 +142,10 @@ input[type="reset"],
 }
 .prose a { color: var(--primary); text-decoration: underline; }
 .prose hr { border: none; border-top: 1px solid var(--border); margin: 1.5em 0; }
+.prose table { border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 0.875em; }
+.prose th, .prose td { border: 1px solid var(--border); padding: 0.5em 0.75em; text-align: left; }
+.prose th { background: var(--surface-hover); font-weight: 600; }
+.prose tr:nth-child(even) td { background: var(--surface-hover); }
 
 /* Tiptap task list */
 ul[data-type="taskList"] { list-style: none; padding-left: 0; }

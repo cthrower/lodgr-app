@@ -13,6 +13,10 @@ import Image from '@tiptap/extension-image'
 import Link from '@tiptap/extension-link'
 import Underline from '@tiptap/extension-underline'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
+import Table from '@tiptap/extension-table'
+import TableRow from '@tiptap/extension-table-row'
+import TableHeader from '@tiptap/extension-table-header'
+import TableCell from '@tiptap/extension-table-cell'
 import { createLowlight, common } from 'lowlight'
 import {
   Bold,
@@ -35,7 +39,7 @@ import { marked } from 'marked'
 const lowlight = createLowlight(common)
 
 function looksLikeMarkdown(text: string): boolean {
-  return /^#{1,6} |^\s*[-*+] |\*\*|__|\[.+\]\(|^```|^> |^\d+\. /m.test(text)
+  return /^#{1,6} |^\s*[-*+] |\*\*|__|\[.+\]\(|^```|^> |^\d+\. |\|.+\|/m.test(text)
 }
 
 type SlashCmd = {
@@ -94,6 +98,7 @@ type SlashMenuState = {
 type Props = {
   content?: unknown
   onChange?: (json: unknown) => void
+  onBlur?: () => void
   placeholder?: string
   editable?: boolean
   className?: string
@@ -102,6 +107,7 @@ type Props = {
 export default function TiptapEditor({
   content,
   onChange,
+  onBlur,
   placeholder = 'Write something…',
   editable = true,
   className,
@@ -198,11 +204,16 @@ export default function TiptapEditor({
       Link.configure({ openOnClick: false }),
       Underline,
       CodeBlockLowlight.configure({ lowlight }),
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
       slashExtension,
     ],
     content: (content as object) || '',
     editable,
     onUpdate: ({ editor }) => onChange?.(editor.getJSON()),
+    onBlur: () => onBlur?.(),
     editorProps: {
       attributes: {
         class: 'prose prose-sm max-w-none focus:outline-none min-h-[120px] text-[var(--text-primary)]',
@@ -212,10 +223,10 @@ export default function TiptapEditor({
         if (!text || !looksLikeMarkdown(text)) return false
         event.preventDefault()
         const html = marked.parse(text, { async: false }) as string
-        editorRef.current?.chain().focus().insertContent(html).run()
-        setTimeout(() => {
-          if (editorRef.current) onChangeRef.current?.(editorRef.current.getJSON())
-        }, 0)
+        const e = editorRef.current
+        if (!e) return true
+        e.chain().focus().insertContent(html).run()
+        onChangeRef.current?.(e.getJSON())
         return true
       },
     },

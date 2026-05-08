@@ -48,6 +48,7 @@ export default function DocEditor({ doc }: { doc: DocData }) {
   const descSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savedFlashRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const titleInputRef = useRef<HTMLInputElement>(null)
+  const pendingBodyRef = useRef<unknown>(null)
 
   useEffect(() => {
     setWordCount(countWords(doc.body))
@@ -59,12 +60,34 @@ export default function DocEditor({ doc }: { doc: DocData }) {
     savedFlashRef.current = setTimeout(() => setSavedFlash(false), 2200)
   }
 
+  const flushPendingBodySave = useCallback(() => {
+    const body = pendingBodyRef.current
+    if (body === null) return
+    if (descSaveRef.current) clearTimeout(descSaveRef.current)
+    descSaveRef.current = null
+    pendingBodyRef.current = null
+    updateDoc({ id: doc.id, body }).then(flashSaved).catch(() => setSaving(false))
+  }, [doc.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.visibilityState === 'hidden') flushPendingBodySave()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      flushPendingBodySave()
+    }
+  }, [flushPendingBodySave])
+
   const handleContentChange = useCallback(
     (json: unknown) => {
+      pendingBodyRef.current = json
       if (descSaveRef.current) clearTimeout(descSaveRef.current)
       setSaving(true)
       setWordCount(countWords(json))
       descSaveRef.current = setTimeout(async () => {
+        pendingBodyRef.current = null
         try {
           await updateDoc({ id: doc.id, body: json })
           flashSaved()
@@ -164,6 +187,7 @@ export default function DocEditor({ doc }: { doc: DocData }) {
           <TiptapEditor
             content={doc.body}
             onChange={handleContentChange}
+            onBlur={flushPendingBodySave}
             placeholder="Start writing, or type / for commands…"
             className="border-0 shadow-none"
           />
