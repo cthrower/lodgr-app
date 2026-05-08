@@ -185,6 +185,8 @@ export default function TiptapEditor({
   )
 
   const editorRef = useRef<Editor | null>(null)
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
 
   const editor = useEditor({
     extensions: [
@@ -211,6 +213,9 @@ export default function TiptapEditor({
         event.preventDefault()
         const html = marked.parse(text, { async: false }) as string
         editorRef.current?.chain().focus().insertContent(html).run()
+        setTimeout(() => {
+          if (editorRef.current) onChangeRef.current?.(editorRef.current.getJSON())
+        }, 0)
         return true
       },
     },
