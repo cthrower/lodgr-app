@@ -242,12 +242,16 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
   function handleDescChange(json: unknown) {
     setDescription(json)
     if (descSaveRef.current) clearTimeout(descSaveRef.current)
-    descSaveRef.current = setTimeout(() => saveField({ description: json }), 800)
+    descSaveRef.current = setTimeout(() => {
+      descSaveRef.current = null
+      saveField({ description: json })
+    }, 800)
   }
 
   async function handleClose() {
     if (descSaveRef.current) {
       clearTimeout(descSaveRef.current)
+      descSaveRef.current = null
       await saveField({ description })
     }
     router.refresh()
@@ -411,6 +415,7 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
             <div className="flex-1 overflow-y-auto p-5">
               {activeTab === 'description' && (
                 <TiptapEditor
+                  key={task.id}
                   content={description}
                   onChange={handleDescChange}
                   placeholder="Add a description…"
