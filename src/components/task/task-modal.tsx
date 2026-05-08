@@ -59,6 +59,7 @@ type Props = {
   columns: { id: string; name: string }[]
   labels: Label[]
   onClose: () => void
+  onDescriptionChange?: (taskId: string, description: unknown) => void
 }
 
 type Tab = 'description' | 'comments' | 'attachments'
@@ -168,7 +169,7 @@ function CommentBubble({
   )
 }
 
-export default function TaskModal({ task, members, columns, labels, onClose }: Props) {
+export default function TaskModal({ task, members, columns, labels, onClose, onDescriptionChange }: Props) {
   const router = useRouter()
 
   const [title, setTitle] = useState('')
@@ -241,6 +242,7 @@ export default function TaskModal({ task, members, columns, labels, onClose }: P
 
   function handleDescChange(json: unknown) {
     setDescription(json)
+    if (task) onDescriptionChange?.(task.id, json)
     if (descSaveRef.current) clearTimeout(descSaveRef.current)
     descSaveRef.current = setTimeout(() => {
       descSaveRef.current = null

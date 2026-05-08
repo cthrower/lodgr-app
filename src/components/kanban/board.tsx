@@ -533,6 +533,14 @@ export default function KanbanBoard({ project, members, labels }: Props) {
         columns={allColumns}
         labels={labels}
         onClose={() => setOpenTaskId(null)}
+        onDescriptionChange={(taskId, description) =>
+          setColumns((prev) =>
+            prev.map((col) => ({
+              ...col,
+              tasks: col.tasks.map((t) => (t.id === taskId ? { ...t, description } : t)),
+            }))
+          )
+        }
       />
     </div>
   )
